@@ -12,6 +12,7 @@ _CAB_FIJOS = {
     "C_EMPRESA": 5,
     "C_VENDEDOR": 0,
     "M_BASICO_EXENTO": 0,
+    "C_FORMA_DE_PA": 1,  # Contado
 }
 
 _DET_FIJOS = {
@@ -61,13 +62,13 @@ def crear_comprobante(payload: ComprobanteRequest):
                     C_CLIENTE, C_VENDEDOR, F_FACTURA, R_COMPROBAN,
                     Q_TOTAL_DE_AR, M_BASICO_GRAV, M_BASICO_EXENTO,
                     M_BASIC_TOTAL, M_DESCUENTO, DESCUENTO, M_IMPUESTO, M_TOTAL,
-                    OBSERVACIONES
+                    OBSERVACIONES, C_FORMA_DE_PA
                 ) VALUES (
                     :id, :c_comprobante, :c_tipo_compro, :c_sucursal, :c_empresa,
                     :c_cliente, :c_vendedor, :f_factura, :r_comproban,
                     :q_total_de_ar, :m_basico_grav, :m_basico_exento,
                     :m_basic_total, :m_descuento, :descuento, :m_impuesto, :m_total,
-                    :observaciones
+                    :observaciones, :c_forma_de_pa
                 )
                 """,
                 {
