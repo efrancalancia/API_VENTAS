@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, HTTPException
 from db import get_connection
 from models import ComprobanteRequest, ComprobanteResponse
@@ -24,6 +25,37 @@ _DET_FIJOS = {
 
 # C_NUMERADOR correspondiente a C_TIPO_COMPRO=2 / C_COMPROBANTE=21
 _C_NUMERADOR = 20
+
+_LOG_INSERT = """
+    INSERT INTO APX_LOG_API_VENTAS
+        (ESTADO, FAC_ID, R_COMPROBAN, C_CLIENTE, OBSERVACIONES,
+         Q_LINEAS, M_TOTAL, ERROR_DETALLE, PAYLOAD_JSON)
+    VALUES
+        (:estado, :fac_id, :r_comproban, :c_cliente, :observaciones,
+         :q_lineas, :m_total, :error_detalle, :payload_json)
+"""
+
+
+def _registrar_log(estado, payload, fac_id=None, r_comproban=None, error=None):
+    """Registra en APX_LOG_API_VENTAS. Usa conexión independiente para no afectar la transacción principal."""
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(_LOG_INSERT, {
+                "estado": estado,
+                "fac_id": fac_id,
+                "r_comproban": r_comproban,
+                "c_cliente": payload.cabecera.c_cliente,
+                "observaciones": payload.observaciones[:200] if payload.observaciones else None,
+                "q_lineas": len(payload.lineas),
+                "m_total": payload.cabecera.m_total,
+                "error_detalle": str(error)[:4000] if error else None,
+                "payload_json": json.dumps(payload.model_dump(), default=str),
+            })
+            conn.commit()
+            cursor.close()
+    except Exception:
+        pass  # El log nunca debe impedir la respuesta al cliente
 
 
 @router.post("", response_model=ComprobanteResponse, status_code=201)
@@ -129,12 +161,16 @@ def crear_comprobante(payload: ComprobanteRequest):
 
         except HTTPException:
             conn.rollback()
+            _registrar_log("ERROR", payload, error=str(getattr(locals().get('e'), 'detail', 'HTTPException')))
             raise
         except Exception as e:
             conn.rollback()
+            _registrar_log("ERROR", payload, fac_id=locals().get('nuevo_id'), error=str(e))
             raise HTTPException(status_code=500, detail=str(e))
         finally:
             cursor.close()
+
+    _registrar_log("OK", payload, fac_id=nuevo_id, r_comproban=nuevo_r_comproban)
 
     return ComprobanteResponse(
         id=nuevo_id,
